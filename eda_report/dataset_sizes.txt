@@ -1,0 +1,4 @@
+Total timesteps: 1021
+Train timesteps: 901
+Test timesteps:  120
+Spatial dims:    y=48, x=72

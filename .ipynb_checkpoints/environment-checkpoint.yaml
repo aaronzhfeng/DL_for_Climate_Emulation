@@ -1,0 +1,21 @@
+name: climate-emulation
+channels:
+  - conda-forge
+  - pytorch
+dependencies:
+  - python=3.10
+  - pytorch>=2.2
+  - cudatoolkit=11.8        # comment-out if using CPU
+  - lightning>=2.2
+  - xarray
+  - dask
+  - zarr
+  - netcdf4
+  - numpy
+  - pandas
+  - matplotlib
+  - scikit-learn
+  - tqdm
+  - pip
+  - pip:
+      - wandb   # optional, for logging

@@ -12,7 +12,7 @@
 ```
 DL_for_Climate_Emulation/
 │
-├── 151b_kaggle.ipynb # Kaggle submission template
+├── baseline.ipynb # Baseline models
 ├── Best-UNet.py # Main training script
 ├── DCNN.ipynb # Dilated CNN baseline
 ├── EDA.ipynb # Exploratory data analysis
@@ -67,7 +67,7 @@ python Best-UNet.py --config environment.yaml
 ---
 
 ### Additional Notebooks
-EDA.ipynb – Explore data and view simple baselines
+EDA.ipynb, baseline.ipynb – Explore data and view simple baselines
 
 ResNet.ipynb, U-Net-1D.ipynb, FNO.ipynb, DCNN.ipynb – Model comparisons
 

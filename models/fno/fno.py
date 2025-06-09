@@ -28,14 +28,18 @@ config = {
         "batch_size": 64,
         "num_workers": 4,
     },
-    "model_linear": {
-        "type": "linear"
+    "model_fno": {
+        "type": "fno",
+        "modes1": 16,
+        "modes2": 16,
+        "width": 32,
+        "num_fourier_layers": 4,
     },
     "training": {
         "lr": 1e-3,
     },
     "trainer": {
-        "max_epochs": 20,
+        "max_epochs": 10,
         "accelerator": "auto",
         "devices": "auto",
         "precision": 32,
@@ -91,15 +95,64 @@ class Normalizer:
             raise ValueError("Output statistics not set in Normalizer for inverse transform.")
         return data * (self.std_out + 1e-8) + self.mean_out
 
-class LinearBaseline(nn.Module):
-    """Per-pixel linear regression via 1x1 convolution."""
-    def __init__(self, n_input_channels: int, n_output_channels: int):
+class SpectralConv2d(nn.Module):
+    def __init__(self, in_channels, out_channels, modes1, modes2):
         super().__init__()
-        self.linear = nn.Conv2d(n_input_channels, n_output_channels, kernel_size=1, bias=True)
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.modes1 = modes1
+        self.modes2 = modes2
+
+        self.scale = 1 / (in_channels * out_channels)
+        self.weights1 = nn.Parameter(self.scale * torch.rand(in_channels, out_channels, modes1, modes2, dtype=torch.cfloat))
+        self.weights2 = nn.Parameter(self.scale * torch.rand(in_channels, out_channels, modes1, modes2, dtype=torch.cfloat))
+
+    def compl_mul2d(self, input_tensor, weights):
+        return torch.einsum("bixy,ioxy->boxy", input_tensor, weights)
 
     def forward(self, x):
-        return self.linear(x)
+        batchsize = x.shape[0]
+        x_ft = torch.fft.rfft2(x, norm="ortho")
+        out_ft = torch.zeros(batchsize, self.out_channels, x.size(-2), x.size(-1)//2 + 1, dtype=torch.cfloat, device=x.device)
+        out_ft[:, :, :self.modes1, :self.modes2] = self.compl_mul2d(x_ft[:, :, :self.modes1, :self.modes2], self.weights1)
+        out_ft[:, :, -self.modes1:, :self.modes2] = self.compl_mul2d(x_ft[:, :, -self.modes1:, :self.modes2], self.weights2)
+        x = torch.fft.irfft2(out_ft, s=(x.size(-2), x.size(-1)), norm="ortho")
+        return x
 
+
+class FNO2d(nn.Module):
+    def __init__(self, n_input_channels, n_output_channels, modes1, modes2, width, num_fourier_layers=4):
+        super().__init__()
+        self.modes1 = modes1
+        self.modes2 = modes2
+        self.width = width
+        self.num_fourier_layers = num_fourier_layers
+
+        self.fc0 = nn.Linear(n_input_channels, self.width)
+        self.fourier_layers = nn.ModuleList()
+        for _ in range(self.num_fourier_layers):
+            f_layer = SpectralConv2d(self.width, self.width, self.modes1, self.modes2)
+            w_layer = nn.Conv2d(self.width, self.width, 1)
+            self.fourier_layers.append(nn.ModuleList([f_layer, w_layer]))
+
+        self.fc1 = nn.Linear(self.width, 128)
+        self.fc2 = nn.Linear(128, n_output_channels)
+
+    def forward(self, x):
+        x = x.permute(0, 2, 3, 1)
+        x = self.fc0(x)
+        x = x.permute(0, 3, 1, 2)
+        for f_layer, w_layer in self.fourier_layers:
+            x1 = f_layer(x)
+            x2 = w_layer(x)
+            x = x1 + x2
+            x = nn.functional.gelu(x)
+        x = x.permute(0, 2, 3, 1)
+        x = self.fc1(x)
+        x = nn.functional.gelu(x)
+        x = self.fc2(x)
+        x = x.permute(0, 3, 1, 2)
+        return x
 # Cell 6: ClimateDataset and ClimateDataModule
 class ClimateDataset(Dataset):
     def __init__(self, inputs_dask, outputs_dask, output_is_normalized=True):
@@ -360,10 +413,15 @@ def main():
     datamodule = ClimateDataModule(**config["data"])
     n_inputs = len(config["data"]["input_vars"])
     n_outputs = len(config["data"]["output_vars"])
-    model = LinearBaseline(n_inputs, n_outputs)
+    fno_params = config.get("model_fno", {})
+    model = FNO2d(n_inputs, n_outputs,
+                  modes1=fno_params.get("modes1", 16),
+                  modes2=fno_params.get("modes2", 16),
+                  width=fno_params.get("width", 32),
+                  num_fourier_layers=fno_params.get("num_fourier_layers", 4))
     lightning_module = ClimateEmulationModule(model, learning_rate=config["training"]["lr"])
     checkpoint_callback = pl.callbacks.ModelCheckpoint(monitor="val/loss", mode="min", filename="best-{epoch:02d}-{val/loss:.2f}", save_top_k=1)
-    metrics_logger = MetricsLogger(save_dir=os.path.join("results", "linear_baseline"))
+    metrics_logger = MetricsLogger(save_dir=os.path.join("results", "fno"))
     trainer_params = {**config["trainer"]}
     trainer_params["callbacks"] = [checkpoint_callback, metrics_logger]
     trainer = pl.Trainer(**trainer_params)

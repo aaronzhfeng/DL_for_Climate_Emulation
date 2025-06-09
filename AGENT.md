@@ -70,3 +70,57 @@ Each of these failure modes and suggestions will be described in the text accomp
 ---
 
 **In summary**, the final report will contain a rich set of visuals: a **baseline comparison** figure highlighting U-Net’s performance gains, an **ablation study** figure demonstrating the importance of skip connections and upsampling choice, a **training curve** to show learning dynamics, a **model architecture diagram** for clarity, and **qualitative maps** (both typical cases and failure cases) for deeper insight. All figures will be designed and presented in a polished, **publication-quality manner** – with readable axes, consistent styling, and informative captions – meeting the standards of a NeurIPS-style paper. This cohesive collection of figures will not only satisfy the assignment requirements but also greatly aid in conveying our project’s findings and the reasoning behind them.
+
+
+
+**Implementation Plan**
+
+
+1. **Create model scripts**  
+   Extract code from notebooks and place them into modular Python files under `models/`. Each script should accept arguments for data path, hyperparameters, and output directory. Leverage the existing `ClimateDataModule` and `ClimateEmulationModule` classes from `Best-UNet.py`.
+
+2. **Standardize metric logging**  
+   Write a common callback (`MetricsLogger`) or utility function that every model script uses. Ensure each training run saves epoch-level metrics and final RMSE values to CSV.
+
+3. **Train and save results**  
+   Run each script (U-Net, baselines, ablation variants) to produce their `metrics.csv` and predictions. These CSV files will be the data source for the visualizations.
+
+4. **Implement visualization script**  
+   `visualization/plot_results.py` reads all CSVs and produced predictions to generate:
+   - Baseline comparison bar plot.
+   - Ablation study bar plot.
+   - Training vs validation curve (from U-Net metrics).
+   - Qualitative maps and worst-case error plots (using the saved predictions/targets).  
+     Save all figures to `visualization/figures/`.
+
+5. **Update README**  
+   Document how to run each model script, where metrics are saved, and how to run the visualization script to reproduce the figures. Show the updated repository structure in the README.
+
+6. **(Optional) Generate an architecture diagram**  
+   Use a tool like `graphviz` or `torchviz` to create a U-Net schematic and save it under `visualization/figures/`.
+
+
+**Proposed Directory Layout**
+DL_for_Climate_Emulation/
+├── models/
+│   ├── baseline/
+│   │   ├── linear.py
+│   │   ├── mlp.py
+│   │   └── cnn.py
+│   ├── unet/
+│   │   ├── best_unet.py  (existing Best-UNet.py)
+│   │   └── unet_variant.py  (skip/bilinear options)
+│   ├── resnet/
+│   │   └── resnet.py
+│   ├── fno/
+│   │   └── fno.py
+│   └── ablation/
+│       ├── unet_noskip.py
+│       └── unet_bilinear.py
+├── notebooks/    # original .ipynb files
+├── results/
+│   └── <model_name>/metrics.csv
+├── visualization/
+│   ├── plot_results.py
+│   └── figures/
+└── ...

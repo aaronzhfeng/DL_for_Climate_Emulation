@@ -5,6 +5,7 @@ import xarray as xr
 import dask.array as da
 import torch
 import torch.nn as nn
+import torch.optim as optim
 import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parents[2]))

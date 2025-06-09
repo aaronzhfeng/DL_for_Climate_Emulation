@@ -28,8 +28,11 @@ config = {
         "batch_size": 64,
         "num_workers": 4,
     },
-    "model_linear": {
-        "type": "linear"
+    "model_resnet": {
+        "type": "resnet",
+        "depth": 18,
+        "in_channels": 5,
+        "out_channels": 2,
     },
     "training": {
         "lr": 1e-3,
@@ -91,15 +94,101 @@ class Normalizer:
             raise ValueError("Output statistics not set in Normalizer for inverse transform.")
         return data * (self.std_out + 1e-8) + self.mean_out
 
-class LinearBaseline(nn.Module):
-    """Per-pixel linear regression via 1x1 convolution."""
-    def __init__(self, n_input_channels: int, n_output_channels: int):
+class BasicBlock(nn.Module):
+    expansion = 1
+
+    def __init__(self, in_c, out_c, stride=1, downsample=None):
         super().__init__()
-        self.linear = nn.Conv2d(n_input_channels, n_output_channels, kernel_size=1, bias=True)
+        self.conv1 = nn.Conv2d(in_c, out_c, 3, stride, 1, bias=False)
+        self.bn1 = nn.BatchNorm2d(out_c)
+        self.conv2 = nn.Conv2d(out_c, out_c, 3, 1, 1, bias=False)
+        self.bn2 = nn.BatchNorm2d(out_c)
+        self.down = downsample
+        self.relu = nn.ReLU(inplace=True)
 
     def forward(self, x):
-        return self.linear(x)
+        identity = x if self.down is None else self.down(x)
+        out = self.relu(self.bn1(self.conv1(x)))
+        out = self.bn2(self.conv2(out))
+        return self.relu(out + identity)
 
+
+class Bottleneck(nn.Module):
+    expansion = 4
+
+    def __init__(self, in_c, out_c, stride=1, downsample=None):
+        super().__init__()
+        self.conv1 = nn.Conv2d(in_c, out_c, 1, bias=False)
+        self.bn1 = nn.BatchNorm2d(out_c)
+        self.conv2 = nn.Conv2d(out_c, out_c, 3, stride, 1, bias=False)
+        self.bn2 = nn.BatchNorm2d(out_c)
+        self.conv3 = nn.Conv2d(out_c, out_c * self.expansion, 1, bias=False)
+        self.bn3 = nn.BatchNorm2d(out_c * self.expansion)
+        self.down = downsample
+        self.relu = nn.ReLU(inplace=True)
+
+    def forward(self, x):
+        identity = x if self.down is None else self.down(x)
+        out = self.relu(self.bn1(self.conv1(x)))
+        out = self.relu(self.bn2(self.conv2(out)))
+        out = self.bn3(self.conv3(out))
+        return self.relu(out + identity)
+
+
+class ResNet(nn.Module):
+    """Simple ResNet-FCN returning dense prediction maps."""
+
+    def __init__(self, depth=18, n_input_channels=5, n_output_classes=2):
+        super().__init__()
+        cfg = {
+            18: (BasicBlock, [2, 2, 2, 2]),
+            34: (BasicBlock, [3, 4, 6, 3]),
+            50: (Bottleneck, [3, 4, 6, 3]),
+            101: (Bottleneck, [3, 4, 23, 3]),
+            152: (Bottleneck, [3, 8, 36, 3]),
+        }[depth]
+        block, layers = cfg
+        self.in_c = 64
+
+        self.stem = nn.Sequential(
+            nn.Conv2d(n_input_channels, 64, 3, 1, 1, bias=False),
+            nn.BatchNorm2d(64),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(3, 2, 1),
+        )
+
+        self.layer1 = self._make_layer(block, 64, layers[0], stride=1)
+        self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
+        self.layer3 = self._make_layer(block, 256, layers[2], stride=2)
+        self.layer4 = self._make_layer(block, 512, layers[3], stride=1)
+
+        self.head = nn.Conv2d(512 * block.expansion, n_output_classes, kernel_size=1)
+
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, nonlinearity="relu")
+
+    def _make_layer(self, block, out_c, blocks, stride):
+        down = None
+        if stride != 1 or self.in_c != out_c * block.expansion:
+            down = nn.Sequential(
+                nn.Conv2d(self.in_c, out_c * block.expansion, 1, stride, bias=False),
+                nn.BatchNorm2d(out_c * block.expansion),
+            )
+        layers = [block(self.in_c, out_c, stride, down)]
+        self.in_c = out_c * block.expansion
+        layers += [block(self.in_c, out_c) for _ in range(1, blocks)]
+        return nn.Sequential(*layers)
+
+    def forward(self, x):
+        H, W = x.shape[-2:]
+        x = self.stem(x)
+        x = self.layer1(x)
+        x = self.layer2(x)
+        x = self.layer3(x)
+        x = self.layer4(x)
+        x = self.head(x)
+        return nn.functional.interpolate(x, (H, W), mode="bilinear", align_corners=False)
 # Cell 6: ClimateDataset and ClimateDataModule
 class ClimateDataset(Dataset):
     def __init__(self, inputs_dask, outputs_dask, output_is_normalized=True):
@@ -360,10 +449,11 @@ def main():
     datamodule = ClimateDataModule(**config["data"])
     n_inputs = len(config["data"]["input_vars"])
     n_outputs = len(config["data"]["output_vars"])
-    model = LinearBaseline(n_inputs, n_outputs)
+    res_params = config.get("model_resnet", {})
+    model = ResNet(depth=res_params.get("depth", 18), n_input_channels=n_inputs, n_output_classes=n_outputs)
     lightning_module = ClimateEmulationModule(model, learning_rate=config["training"]["lr"])
     checkpoint_callback = pl.callbacks.ModelCheckpoint(monitor="val/loss", mode="min", filename="best-{epoch:02d}-{val/loss:.2f}", save_top_k=1)
-    metrics_logger = MetricsLogger(save_dir=os.path.join("results", "linear_baseline"))
+    metrics_logger = MetricsLogger(save_dir=os.path.join("results", "resnet"))
     trainer_params = {**config["trainer"]}
     trainer_params["callbacks"] = [checkpoint_callback, metrics_logger]
     trainer = pl.Trainer(**trainer_params)

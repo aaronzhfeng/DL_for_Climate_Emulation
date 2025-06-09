@@ -174,10 +174,21 @@ class UNet(nn.Module):
         x3 = self.down2(x2)
         x4 = self.down3(x3)
         x5 = self.down4(x4)
+
         x = self.up1(x5)
         x = self.up2(x)
         x = self.up3(x)
         x = self.up4(x)
+
+        # Pad the final output to match the original input dimensions
+        diffY = x1.size(2) - x.size(2)
+        diffX = x1.size(3) - x.size(3)
+        if diffY != 0 or diffX != 0:
+            x = F.pad(
+                x,
+                [diffX // 2, diffX - diffX // 2, diffY // 2, diffY - diffY // 2],
+            )
+
         return self.outc(x)
 
 # Cell 6: ClimateDataset and ClimateDataModule

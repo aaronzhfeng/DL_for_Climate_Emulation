@@ -1,0 +1,23 @@
+kaggle_submission_unet_20250608_231758
+# best_unet
+
+kaggle_submission_unet_20250608_235746
+# linear
+
+kaggle_submission_unet_20250608_235857
+# mlp
+
+kaggle_submission_unet_20250609_002237
+# cnn
+
+kaggle_submission_unet_20250609_002638
+# fno
+
+kaggle_submission_unet_20250609_003241
+# resnet
+
+kaggle_submission_unet_20250609_005632
+# unet_bilinear
+
+kaggle_submission_unet_20250609_041552
+# unet_noskip

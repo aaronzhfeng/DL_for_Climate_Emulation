@@ -22,6 +22,14 @@ DL_for_Climate_Emulation/
 ├── U-Net-1D.ipynb # 1D U-Net variation
 ├── visualization.ipynb # Model output visualization
 │
+├── results/              # metrics for each trained model
+│   └── <model_name>/metrics.csv
+├── visualization/
+│   ├── baseline_vs_unet.py          # Baseline models vs U-Net
+│   ├── baseline_vs_fno_resnet.py    # Baselines vs FNO/ResNet
+│   ├── unet_ablation.py             # Ablation comparison plots
+│   └── figures/                     # Saved plots
+│
 ├── environment.yaml # Conda environment specification
 ├── README.md # This file
 │
@@ -63,6 +71,16 @@ processed_data_cse151b_v2_corrupted_ssp245/
 ```
 python Best-UNet.py --config environment.yaml
 ```
+
+### 4. Generate Comparison Figures
+After training all models, run the visualization scripts:
+```
+python visualization/baseline_vs_unet.py
+python visualization/baseline_vs_fno_resnet.py
+python visualization/unet_ablation.py
+```
+Each script reads its needed `results/<model_name>/metrics.csv`
+and saves figures under `visualization/figures/`.
 
 ---
 

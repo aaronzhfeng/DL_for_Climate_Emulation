@@ -12,32 +12,55 @@
 ```
 DL_for_Climate_Emulation/
 │
-├── baseline.ipynb # Baseline models
-├── Best-UNet.py # Main training script
-├── DCNN.ipynb # Dilated CNN baseline
-├── EDA.ipynb # Exploratory data analysis
-├── FNO.ipynb # Fourier Neural Operator model
-├── ResNet.ipynb # ResNet-based model
-├── U-Net.ipynb # 2D U-Net baseline
-├── U-Net-1D.ipynb # 1D U-Net variation
-├── visualization.ipynb # Model output visualization
+├── Best-UNet.py                      # Main training script for best U-Net
+├── *.ipynb                           # Model training notebooks (baseline, UNet, FNO, etc.)
+├── val_preds.npy                     # Saved validation predictions
+├── val_trues.npy                     # Saved validation ground truth
 │
-├── results/              # metrics for each trained model
-│   └── <model_name>/metrics.csv
+├── eda_report/                       # Output figures / stats from EDA
+├── processed_data_cse151b_v2_corrupted_ssp245/  # Preprocessed Zarr dataset
+│
+├── environment.yaml                  # Conda environment specification
+├── README.md                         # Project documentation (this file)
+│
+├── models/
+│   ├── ablation/
+│   │   ├── unet_bilinear.py
+│   │   └── unet_noskip.py
+│   ├── baseline/
+│   │   ├── cnn.py
+│   │   ├── linear.py
+│   │   └── mlp.py
+│   ├── fno/
+│   │   └── fno.py
+│   ├── resnet/
+│   │   └── resnet.py
+│   └── unet/
+│       ├── best_unet.py
+│       └── metrics_logger.py
+│
+├── results/
+│   ├── best_unet/
+│   ├── cnn_baseline/
+│   ├── fno/
+│   ├── linear_baseline/
+│   ├── mlp_baseline/
+│   ├── resnet/
+│   ├── unet_bilinear/
+│   └── unet_noskip/
+│
+├── submissions/                      # Final model submission files
+│
 ├── visualization/
-│   ├── baseline_vs_unet.py          # Baseline models vs U-Net
-│   ├── baseline_vs_fno_resnet.py    # Baselines vs FNO/ResNet
-│   ├── unet_ablation.py             # Ablation comparison plots
-│   └── figures/                     # Saved plots
-│
-├── environment.yaml # Conda environment specification
-├── README.md # This file
-│
-├── processed_data_cse151b_v2_corrupted_ssp245/ # Preprocessed Zarr data (~9GB)
-├── val_preds.npy # Saved validation predictions
-├── val_trues.npy # Saved validation ground truth
-├── eda_report/ # Output figures / stats from EDA
-└── submissions/ # Sample prediction files
+│   ├── figures/                      # Saved output plots
+│   ├── baseline_vs_unet.py
+│   ├── unet_ablation.py
+│   ├── unet_vs_fno_resnet.py
+│   ├── baseline_vs_unet.ipynb
+│   ├── best_unet_diagnostics.ipynb
+│   ├── unet_ablation.ipynb
+│   └── unet_vs_fno_resnet.ipynb
+
 ```
 ## ⚙️ Getting Started
 
@@ -89,7 +112,7 @@ EDA.ipynb, baseline.ipynb – Explore data and view simple baselines
 
 ResNet.ipynb, U-Net-1D.ipynb, FNO.ipynb, DCNN.ipynb – Model comparisons
 
-visualization.ipynb – Visualize predictions vs. ground truth
+visualization/ - figures and their ipynb/py files for the generation
 
 📌 Notes
 Target resolution: 48×72 spatial grid

@@ -76,7 +76,7 @@ python Best-UNet.py --config environment.yaml
 After training all models, run the visualization scripts:
 ```
 python visualization/baseline_vs_unet.py
-python visualization/baseline_vs_fno_resnet.py
+python visualization/unet_vs_fno_resnet.py
 python visualization/unet_ablation.py
 ```
 Each script reads its needed `results/<model_name>/metrics.csv`
